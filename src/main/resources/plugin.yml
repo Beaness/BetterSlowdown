@@ -1,0 +1,7 @@
+name: BetterSlowdown
+version: '${version}'
+main: me.beanes.betterslowdown.BetterSlowdown
+author: Beanes
+description: Fixes server/network issues related to hit slowdown
+depend:
+  - packetevents
