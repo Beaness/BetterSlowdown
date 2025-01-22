@@ -16,11 +16,11 @@ import java.util.Map;
 
 public class FilterListener implements PacketListener {
     private final BetterSlowdown plugin;
-    private final Map<User, Byte> lastUsefulBitmask;
+    private final ThreadLocal<Map<User, Byte>> lastUsefulBitmaskThreadLocal;
 
     public FilterListener(BetterSlowdown plugin) {
         this.plugin = plugin;
-        this.lastUsefulBitmask = new HashMap<>();;
+        this.lastUsefulBitmaskThreadLocal = ThreadLocal.withInitial(HashMap::new);
     }
 
 
@@ -47,8 +47,9 @@ public class FilterListener implements PacketListener {
                         bitmask &= ~0x10; // Remove using
 
                         // Check if the "useful" bitmask has changed, which means either the client is on fire or invisible
-                        if (this.lastUsefulBitmask.getOrDefault(user, (byte) 0) != bitmask) {
-                            this.lastUsefulBitmask.put(user, bitmask);
+                        Map<User, Byte> lastUsefulBitmask = lastUsefulBitmaskThreadLocal.get();
+                        if (lastUsefulBitmask.getOrDefault(user, (byte) 0) != bitmask) {
+                            lastUsefulBitmask.put(user, bitmask);
 
                             if (plugin.getMode() != FallbackMode.SERVER) {
                                 if (plugin.getMode() == FallbackMode.SPRINT) {
@@ -79,6 +80,6 @@ public class FilterListener implements PacketListener {
 
     @Override
     public void onUserDisconnect(UserDisconnectEvent event) {
-        this.lastUsefulBitmask.remove(event.getUser());
+        this.lastUsefulBitmaskThreadLocal.get().remove(event.getUser());
     }
 }
