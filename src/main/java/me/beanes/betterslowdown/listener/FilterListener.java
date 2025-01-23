@@ -32,7 +32,7 @@ public class FilterListener implements PacketListener {
             User user = event.getUser();
 
             // Only check metadata packets about the player itself
-            if (wrapper.getEntityId() != event.getUser().getEntityId()) {
+            if (wrapper.getEntityId() == event.getUser().getEntityId()) {
                 Iterator<EntityData> iterator = wrapper.getEntityMetadata().iterator();
 
                 while (iterator.hasNext()) {
