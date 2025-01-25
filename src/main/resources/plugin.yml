@@ -1,5 +1,5 @@
 name: BetterSlowdown
-version: '${version}'
+version: 1.1
 main: me.beanes.betterslowdown.BetterSlowdown
 author: Beanes
 description: Fixes server/network issues related to hit slowdown

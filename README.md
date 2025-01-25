@@ -26,6 +26,9 @@ Doing this fix should make hit slowdown **less latency** dependant.
 
 **Warning:** This plugin will make hit slowdown happen completely different to most servers (To compare: minemen.club has fixed this issue partly by not doing setSprinting(false) internally, it still has the other issue, of when the client sends START_SPRINTING / STOP_SPRINTING)
 
+## Attribute
+Since version 1.1 BetterSlowdown also cancels "useless" attribute packets which apply / remove the sprint modifier, this is handled client side and the server should not try to override this. 
+
 ## Dependencies
 
 This plugin uses, and depends on [PacketEvents](https://github.com/retrooper/packetevents)
