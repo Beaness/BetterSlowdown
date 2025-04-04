@@ -12,11 +12,12 @@
 # If the player turns invisible or is set on fire we still have to send the bitmask
 # There are different types of fallback modes for this:
 #   SERVER - this mode will just use the server sent value
+#   CLIENT - this mode will use the client sprinting state (latency dependent)
 #   SPRINT - always set sprinting true, causes the client to force the hit slowdown (if the client hit) for a single tick when it receives the updated metadata
-#   NO_SPRINT - always set sprinting false, causes the client to not do the hit slowdown (if the client hit) even when its sprinting when it receives the updated metadata
-mode: SPRINT
+#   NO_SPRINT - always set sprinting false, causes the client to not do the hit slowdown (if the client hit) for a single tick when it receives the updated metadata
+mode: CLIENT
 
 # Should the server always apply the sprint attribute when attributes are being overridden by server (and the plugin can't cancel it due to speed change)
 # This is useful for HCF servers when you get speed 3 / speed 2, and your sprint suddenly disappears
-# This is still in beta as this can cause the player to sprint while not having the food for it and it can cause omnisprint
+# Worst case scenario, this can cause OmniSprint due to using client state
 always-add-sprint: false

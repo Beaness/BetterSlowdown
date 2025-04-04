@@ -1,34 +1,52 @@
 package me.beanes.betterslowdown.listener;
 
-import com.github.retrooper.packetevents.event.PacketListener;
-import com.github.retrooper.packetevents.event.PacketSendEvent;
-import com.github.retrooper.packetevents.event.UserDisconnectEvent;
+import com.github.retrooper.packetevents.event.*;
+import com.github.retrooper.packetevents.protocol.attribute.Attributes;
 import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.protocol.player.User;
+import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientEntityAction;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerUpdateAttributes;
 import me.beanes.betterslowdown.BetterSlowdown;
 import me.beanes.betterslowdown.FallbackMode;
+import me.beanes.betterslowdown.data.PlayerData;
+import me.beanes.betterslowdown.data.PlayerDataManager;
 
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.UUID;
 
 public class FilterListener implements PacketListener {
     private static final UUID SPRINT_MODIFIER_UUID = UUID.fromString("662A6B8D-DA3E-4C1C-8813-96EA6097278D");
-    private static final WrapperPlayServerUpdateAttributes.PropertyModifier SPRINT_MODIFIER = new WrapperPlayServerUpdateAttributes.PropertyModifier(SPRINT_MODIFIER_UUID, 0.30000001192092896D, WrapperPlayServerUpdateAttributes.PropertyModifier.Operation.MULTIPLY_TOTAL);
+    private static final WrapperPlayServerUpdateAttributes.PropertyModifier SPRINT_MODIFIER = new WrapperPlayServerUpdateAttributes.PropertyModifier(
+            SPRINT_MODIFIER_UUID,
+            0.30000001192092896D,
+            WrapperPlayServerUpdateAttributes.PropertyModifier.Operation.MULTIPLY_TOTAL
+    );
     private final BetterSlowdown plugin;
-    private final ThreadLocal<Map<User, Byte>> lastUsefulBitmaskThreadLocal;
-    private final ThreadLocal<Map<User, Double>> lastSpeedThreadLocal;
+    private final PlayerDataManager manager;
 
     public FilterListener(BetterSlowdown plugin) {
         this.plugin = plugin;
-        this.lastUsefulBitmaskThreadLocal = ThreadLocal.withInitial(HashMap::new);
-        this.lastSpeedThreadLocal = ThreadLocal.withInitial(HashMap::new);
+        this.manager = new PlayerDataManager();
     }
 
+
+    @Override
+    public void onPacketReceive(PacketReceiveEvent event) {
+        // We keep track of the current client sprinting metadata
+        if (event.getPacketType() == PacketType.Play.Client.ENTITY_ACTION) {
+            WrapperPlayClientEntityAction wrapper = new WrapperPlayClientEntityAction(event);
+
+            PlayerData data = manager.get(event.getUser());
+
+            if (wrapper.getAction() == WrapperPlayClientEntityAction.Action.START_SPRINTING) {
+                data.setClientSprintingState(true);
+            } else if (wrapper.getAction() == WrapperPlayClientEntityAction.Action.STOP_SPRINTING) {
+                data.setClientSprintingState(false);
+            }
+        }
+    }
 
     @Override
     public void onPacketSend(PacketSendEvent event) {
@@ -42,26 +60,35 @@ public class FilterListener implements PacketListener {
                 Iterator<EntityData> iterator = wrapper.getEntityMetadata().iterator();
 
                 while (iterator.hasNext()) {
-                    EntityData data = iterator.next();
+                    EntityData entityData = iterator.next();
 
                     // Check if the entity metadata bitmask is in this packet
-                    if (data.getIndex() == 0) {
-                        byte bitmask = (byte) data.getValue();
+                    if (entityData.getIndex() == MetadataValues.BITMASK_INDEX) {
+                        byte bitmask = (byte) entityData.getValue();
                         // Calculate the useful bitmask
-                        bitmask &= ~0x02; // Remove crouching
-                        bitmask &= ~0x08; // Remove sprinting
-                        bitmask &= ~0x10; // Remove using
+                        bitmask &= ~MetadataValues.FLAG_CROUCHING; // Remove crouching
+                        bitmask &= ~MetadataValues.FLAG_SPRINTING; // Remove sprinting
+                        bitmask &= ~MetadataValues.FLAG_USING; // Remove using
 
                         // Check if the "useful" bitmask has changed, which means either the client is on fire or invisible
-                        Map<User, Byte> lastUsefulBitmask = lastUsefulBitmaskThreadLocal.get();
-                        if (lastUsefulBitmask.getOrDefault(user, (byte) 0) != bitmask) {
-                            lastUsefulBitmask.put(user, bitmask);
+                        PlayerData data = manager.get(event.getUser());
+                        byte lastUsefulBitmask = data.getLastUsefulBitmask();
 
-                            if (plugin.getMode() != FallbackMode.SERVER) {
-                                if (plugin.getMode() == FallbackMode.SPRINT) {
-                                    data.setValue((byte) ((byte) data.getValue() | 0x08)); // Rewrite with sprinting = true
-                                } else if (plugin.getMode() == FallbackMode.NO_SPRINT) {
-                                    data.setValue((byte) ((byte) data.getValue() & ~0x08)); // Rewrite with sprinting = false
+                        if (lastUsefulBitmask != bitmask) {
+                            data.setLastUsefulBitmask(bitmask);
+
+                            // Get the fallback mode as we are 100% sending the bitmask
+                            FallbackMode mode = plugin.getMode();
+
+                            if (mode != FallbackMode.SERVER) {
+                                if (mode == FallbackMode.SPRINT
+                                    || (mode == FallbackMode.CLIENT && data.isClientSprintingState())) {
+                                    // Rewrite with sprinting = true
+                                    entityData.setValue((byte) ((byte) entityData.getValue() | MetadataValues.FLAG_SPRINTING));
+                                } else if (mode == FallbackMode.NO_SPRINT
+                                        || (mode == FallbackMode.CLIENT && !data.isClientSprintingState())) {
+                                    // Rewrite with sprinting = false
+                                    entityData.setValue((byte) ((byte) entityData.getValue() & ~MetadataValues.FLAG_SPRINTING));
                                 }
 
                                 // Needs re-encode
@@ -87,7 +114,7 @@ public class FilterListener implements PacketListener {
 
             if (wrapper.getEntityId() == user.getEntityId()) {
                 for (WrapperPlayServerUpdateAttributes.Property snapshot : wrapper.getProperties()) {
-                    if (snapshot.getAttribute().getName().getKey().equals("movement_speed")) {
+                    if (snapshot.getAttribute().equals(Attributes.MOVEMENT_SPEED)) {
                         // Calculate the movement speed without sprint
                         boolean exists = snapshot.getModifiers().removeIf(modifier -> modifier.getUUID().equals(SPRINT_MODIFIER_UUID));
                         if (exists) {
@@ -96,19 +123,21 @@ public class FilterListener implements PacketListener {
 
                         double speed = snapshot.calcValue();
 
-                        Map<User, Double> lastSpeed = lastSpeedThreadLocal.get();
+                        PlayerData data = manager.get(user);
+                        double lastSpeed = data.getLastSpeed();
 
-                        if (lastSpeed.getOrDefault(user, -1.0D) == speed) {
+                        if (lastSpeed == speed) {
                             // Cancel this attribute packet as it only changes the sprint attribute
                             event.setCancelled(true);
                         } else {
                             // Update the speed
-                            lastSpeed.put(user, speed);
+                            data.setLastSpeed(speed);
 
                             if (exists) {
-                                snapshot.addModifier(SPRINT_MODIFIER); // Re-add the modifier if packetevents is on default re-encode
-                            } else if (plugin.isAlwaysAddSprint()) {
-                                // TODO: check if the player is "allowed" to sprint, keep food value, and check START_SPRINTING and STOP_SPRINTING to prevent omnisprint?
+                                // Re-add the modifier if packetevents is on default re-encode
+                                snapshot.addModifier(SPRINT_MODIFIER);
+                            } else if (plugin.isAlwaysAddSprint() && data.isClientSprintingState()) {
+                                // Add sprint modifier is the client claimed he was sprinting and always add sprint is enabled
                                 snapshot.addModifier(SPRINT_MODIFIER);
                                 event.markForReEncode(true);
                             }
@@ -120,14 +149,17 @@ public class FilterListener implements PacketListener {
             User user = event.getUser();
 
             // Reset last as the entity is recreated
-            this.lastUsefulBitmaskThreadLocal.get().remove(user);
-            this.lastSpeedThreadLocal.get().remove(user);
+            manager.get(user).reset();
         }
     }
 
     @Override
+    public void onUserConnect(UserConnectEvent event) {
+        manager.cache(event.getUser(), new PlayerData());
+    }
+
+    @Override
     public void onUserDisconnect(UserDisconnectEvent event) {
-        this.lastUsefulBitmaskThreadLocal.get().remove(event.getUser());
-        this.lastSpeedThreadLocal.get().remove(event.getUser());
+        manager.remove(event.getUser());
     }
 }
