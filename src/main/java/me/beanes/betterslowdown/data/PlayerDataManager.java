@@ -26,10 +26,14 @@ public class PlayerDataManager {
         PlayerData data = cache.get(user);
 
         if (data == null) {
-            data = new PlayerData();
+            data = new PlayerData(user);
             cache.put(user, data);
         }
 
         return data;
+    }
+
+    public Collection<PlayerData> getAll() {
+        return cacheThreadLocal.get().values();
     }
 }

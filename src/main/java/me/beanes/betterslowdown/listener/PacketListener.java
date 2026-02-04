@@ -8,6 +8,7 @@ import com.github.retrooper.packetevents.protocol.player.User;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientEntityAction;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerUpdateAttributes;
+import io.netty.channel.Channel;
 import me.beanes.betterslowdown.BetterSlowdown;
 import me.beanes.betterslowdown.FallbackMode;
 import me.beanes.betterslowdown.data.PlayerData;
@@ -16,7 +17,7 @@ import me.beanes.betterslowdown.data.PlayerDataManager;
 import java.util.Iterator;
 import java.util.UUID;
 
-public class FilterListener implements PacketListener {
+public class PacketListener implements com.github.retrooper.packetevents.event.PacketListener {
     private static final UUID SPRINT_MODIFIER_UUID = UUID.fromString("662A6B8D-DA3E-4C1C-8813-96EA6097278D");
     private static final WrapperPlayServerUpdateAttributes.PropertyModifier SPRINT_MODIFIER = new WrapperPlayServerUpdateAttributes.PropertyModifier(
             SPRINT_MODIFIER_UUID,
@@ -26,7 +27,7 @@ public class FilterListener implements PacketListener {
     private final BetterSlowdown plugin;
     private final PlayerDataManager manager;
 
-    public FilterListener(BetterSlowdown plugin) {
+    public PacketListener(BetterSlowdown plugin) {
         this.plugin = plugin;
         this.manager = new PlayerDataManager();
     }
@@ -53,11 +54,10 @@ public class FilterListener implements PacketListener {
         // Listen for metadata packets
         if (event.getPacketType() == PacketType.Play.Server.ENTITY_METADATA) {
             WrapperPlayServerEntityMetadata wrapper = new WrapperPlayServerEntityMetadata(event);
-            User user = event.getUser();
 
             // Only check metadata packets about the player itself
             if (wrapper.getEntityId() == event.getUser().getEntityId()) {
-                Iterator<EntityData> iterator = wrapper.getEntityMetadata().iterator();
+                Iterator<EntityData<?>> iterator = wrapper.getEntityMetadata().iterator();
 
                 while (iterator.hasNext()) {
                     EntityData entityData = iterator.next();
@@ -155,7 +155,15 @@ public class FilterListener implements PacketListener {
 
     @Override
     public void onUserConnect(UserConnectEvent event) {
-        manager.cache(event.getUser(), new PlayerData());
+        User user = event.getUser();
+        manager.cache(user, new PlayerData(user));
+
+        int repeatTimeNoSlowdown = plugin.getForceSlowdown();
+
+        if (repeatTimeNoSlowdown >= 1) {
+            Channel channel = (Channel) user.getChannel();
+            ForceSlowdownUtil.repeatInEventLoop(manager, channel.eventLoop(), repeatTimeNoSlowdown);
+        }
     }
 
     @Override

@@ -24,10 +24,15 @@ Due to the sprint state being stored in a bitmask the plugin can't always cancel
 
 Doing this fix should make hit slowdown **less latency** dependant.
 
-**Warning:** This plugin will make hit slowdown happen completely different to most servers (To compare: minemen.club has fixed this issue partly by not doing setSprinting(false) internally, it still has the other issue, of when the client sends START_SPRINTING / STOP_SPRINTING)
+**Warning:** This plugin will make hit slowdown happen completely different to most servers
 
 ## Attribute
-Since version 1.1 BetterSlowdown also cancels "useless" attribute packets which apply / remove the sprint modifier, this is handled client side and the server should not try to override this. 
+BetterSlowdown also cancels "useless" attribute packets which apply / remove the sprint modifier, this is handled client side and the server should not try to override this. 
+
+## No slowdown
+You can also use the plugin to disable hit slowdown by spamming metadata sprinting packets to the client. (Note if a client lag spikes its possible they miss the packet and still have slowdown hits)
+
+**Warning:** this breaks dynamic fov when you toggle your sprint
 
 ## Dependencies
 
