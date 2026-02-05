@@ -22,10 +22,7 @@ mode: CLIENT
 # Worst case scenario, this can cause OmniSprint due to using client state
 always-add-sprint: false
 
-# Force no slowdown
-# This features allows you to completely disable hit slowdown by spamming packets to the client
-# The setting allows you to configure how often this "force no slowdown" packet should be sent
-# You want this packet to arrive each client so in ideal circumstances with no lag spikes a 50 ms delay between packet send is perfect (put 50 in the option below)
-# WARNING: this option breaks dynamic fov for sprinting, players their fov will not update properly anymore while this is enabled
-# Use -1 to disable this feature
-force-slowdown: -1
+# No slowdown
+# This features allows you to completely disable hit slowdown
+# Also disables clientsided crits and sharpness particles
+no-slowdown: false

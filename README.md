@@ -30,9 +30,7 @@ Doing this fix should make hit slowdown **less latency** dependant.
 BetterSlowdown also cancels "useless" attribute packets which apply / remove the sprint modifier, this is handled client side and the server should not try to override this. 
 
 ## No slowdown
-You can also use the plugin to disable hit slowdown by spamming metadata sprinting packets to the client. (Note if a client lag spikes its possible they miss the packet and still have slowdown hits)
-
-**Warning:** this breaks dynamic fov when you toggle your sprint
+You can also use the plugin to disable hit slowdown completely for all players.
 
 ## Dependencies
 

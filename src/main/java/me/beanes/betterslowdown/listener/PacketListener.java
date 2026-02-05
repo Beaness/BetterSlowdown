@@ -8,13 +8,14 @@ import com.github.retrooper.packetevents.protocol.player.User;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientEntityAction;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerUpdateAttributes;
-import io.netty.channel.Channel;
 import me.beanes.betterslowdown.BetterSlowdown;
 import me.beanes.betterslowdown.FallbackMode;
 import me.beanes.betterslowdown.data.PlayerData;
 import me.beanes.betterslowdown.data.PlayerDataManager;
 
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.UUID;
 
 public class PacketListener implements com.github.retrooper.packetevents.event.PacketListener {
@@ -24,6 +25,7 @@ public class PacketListener implements com.github.retrooper.packetevents.event.P
             0.30000001192092896D,
             WrapperPlayServerUpdateAttributes.PropertyModifier.Operation.MULTIPLY_TOTAL
     );
+    private static final List<WrapperPlayServerUpdateAttributes.Property> NO_SLOWDOWN_PROPERTY = Collections.singletonList(new WrapperPlayServerUpdateAttributes.Property(Attributes.ATTACK_DAMAGE, 0, Collections.emptyList()));
     private final BetterSlowdown plugin;
     private final PlayerDataManager manager;
 
@@ -113,7 +115,11 @@ public class PacketListener implements com.github.retrooper.packetevents.event.P
             User user = event.getUser();
 
             if (wrapper.getEntityId() == user.getEntityId()) {
-                for (WrapperPlayServerUpdateAttributes.Property snapshot : wrapper.getProperties()) {
+                Iterator<WrapperPlayServerUpdateAttributes.Property> iterator = wrapper.getProperties().iterator();
+
+                while (iterator.hasNext()) {
+                    WrapperPlayServerUpdateAttributes.Property snapshot = iterator.next();
+
                     if (snapshot.getAttribute().equals(Attributes.MOVEMENT_SPEED)) {
                         // Calculate the movement speed without sprint
                         boolean exists = snapshot.getModifiers().removeIf(modifier -> modifier.getUUID().equals(SPRINT_MODIFIER_UUID));
@@ -142,28 +148,34 @@ public class PacketListener implements com.github.retrooper.packetevents.event.P
                                 event.markForReEncode(true);
                             }
                         }
+                    } else if (snapshot.getAttribute().equals(Attributes.ATTACK_DAMAGE) && plugin.isNoSlowdown()) {
+                        iterator.remove();
+                        event.markForReEncode(true);
                     }
                 }
+
+                if (wrapper.getProperties().isEmpty()) {
+                    event.setCancelled(true);
+                }
             }
-        } else if (event.getPacketType() == PacketType.Play.Server.RESPAWN) {
+        } else if (event.getPacketType() == PacketType.Play.Server.RESPAWN || event.getPacketType() == PacketType.Play.Server.JOIN_GAME) {
             User user = event.getUser();
 
             // Reset last as the entity is recreated
             manager.get(user).reset();
+
+            if (plugin.isNoSlowdown()) {
+                event.getTasksAfterSend().add(() -> {
+                    user.sendPacketSilently(new WrapperPlayServerUpdateAttributes(user.getEntityId(), NO_SLOWDOWN_PROPERTY));
+                });
+            }
         }
     }
 
     @Override
     public void onUserConnect(UserConnectEvent event) {
         User user = event.getUser();
-        manager.cache(user, new PlayerData(user));
-
-        int repeatTimeNoSlowdown = plugin.getForceSlowdown();
-
-        if (repeatTimeNoSlowdown >= 1) {
-            Channel channel = (Channel) user.getChannel();
-            ForceSlowdownUtil.repeatInEventLoop(manager, channel.eventLoop(), repeatTimeNoSlowdown);
-        }
+        manager.cache(user, new PlayerData());
     }
 
     @Override

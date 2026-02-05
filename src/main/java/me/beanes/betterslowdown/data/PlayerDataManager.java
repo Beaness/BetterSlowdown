@@ -26,7 +26,7 @@ public class PlayerDataManager {
         PlayerData data = cache.get(user);
 
         if (data == null) {
-            data = new PlayerData(user);
+            data = new PlayerData();
             cache.put(user, data);
         }
 

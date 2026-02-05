@@ -9,7 +9,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 public class BetterSlowdown extends JavaPlugin {
     private FallbackMode mode = FallbackMode.SPRINT;
     private boolean alwaysAddSprint = false;
-    private int forceSlowdown = -1;
+    private boolean noSlowdown = false;
     private PacketListenerCommon listener;
 
     public FallbackMode getMode() {
@@ -20,8 +20,8 @@ public class BetterSlowdown extends JavaPlugin {
         return alwaysAddSprint;
     }
 
-    public int getForceSlowdown() {
-        return forceSlowdown;
+    public boolean isNoSlowdown() {
+        return noSlowdown;
     }
 
     @Override
@@ -36,7 +36,7 @@ public class BetterSlowdown extends JavaPlugin {
         try {
             mode = FallbackMode.valueOf(getConfig().getString("mode").toUpperCase());
             alwaysAddSprint = getConfig().getBoolean("always-add-sprint");
-            forceSlowdown = getConfig().getInt("force-slowdown",  -1);
+            noSlowdown = getConfig().getBoolean("no-slowdown", false);
         } catch (Exception ex) {
             mode = FallbackMode.SERVER;
             getLogger().info("Failed to load config due to error");
